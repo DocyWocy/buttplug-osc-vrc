@@ -41,6 +41,7 @@ OPTIONS:
 * OSC receiver
 * Control multiple devices
 * Build for Windows 10 in realse folder for now
+* to start it for vrchat run "buttplug-osc.exe --intiface-connect ws://127.0.0.1:12345 --osc-listen udp://127.0.0.1:9001"
 
 ## Vrchat changes
 
