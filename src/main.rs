@@ -160,9 +160,9 @@ fn validate_osc_message(message: osc::Message) -> Option<CommandBroadcast> {
         warn!("[{}] {}", message.addr, error);
         None::<CommandBroadcast>
     };
-    match path.get(1) {
+    match path.get(3) { //device
         Some(&"devices") => {
-            match path.get(3) {
+            match path.get(5) { //skips name and gets <command>
                 Some(&"stop") => {
                     debug!("[{}]", message.addr);
                     Some(CommandBroadcast {
@@ -171,7 +171,7 @@ fn validate_osc_message(message: osc::Message) -> Option<CommandBroadcast> {
                     })
                 }
                 Some(&"vibrate") => {
-                    match path.get(4) {
+                    match path.get(6) { //gets <argument>
                         Some(&"speed") => {
                             match message.args {
                                 Some(ref message_args) => {
