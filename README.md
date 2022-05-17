@@ -40,11 +40,11 @@ OPTIONS:
 * Reconnects if device or server temporarily disconnected
 * OSC receiver
 * Control multiple devices
-* [Build for Windows 10](https://github.com/AlexanderPavlenko/buttplug-osc/releases/latest/download/buttplug-osc.exe)
+* Build for Windows 10 in realse folder for now
 
-## TODO
+## Vrchat changes
 
-* Demo patches for:
-    * VCV Rack
-    * TC-Data
-    * Ableton Live 11
+made it adjust for vrchat osc default of /avatar/parameters
+vrchat parameters should be named 
+/devices/all/vibrate/speed
+/devices/all/vibrate/stop
