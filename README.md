@@ -1,7 +1,6 @@
 # buttplug-osc
 
-Thanks to [buttplug.io](https://buttplug.io/), this program allows to control
-~~numerous supported devices~~ at least ones which I have via [OSC](https://en.wikipedia.org/wiki/Open_Sound_Control).
+Thanks to [buttplug.io](https://buttplug.io/), and the original project and creator [buttplug-osc](https://github.com/AlexanderPavlenko/buttplug-osc).
 
 ## Usage
 
@@ -22,9 +21,8 @@ OPTIONS:
         --log-level <rust-log>                    [env: RUST_LOG=]  [default: debug]
 ```
 
-### Supported OSC messages
-
-* /devices/`<name>`/`<command>`/`<argument>`
+### VRchat OSC messages / Paramter namess
+#### /devices/`<name>`/`<command>`/`<argument>`
 
   * Device `<name>`
     * full name as in the log output: `INFO buttplug_osc: [XBoxXInputCompatibleGamepad] added`
@@ -43,9 +41,8 @@ OPTIONS:
 * Build for Windows 10 in realse folder for now
 * to start it for vrchat run "buttplug-osc.exe --intiface-connect ws://127.0.0.1:12345 --osc-listen udp://127.0.0.1:9001"
 
-## Vrchat changes
+## Vrchat set up
 
-made it adjust for vrchat osc default of /avatar/parameters
 vrchat parameters should be named 
 /devices/all/vibrate/speed
 /devices/all/vibrate/stop
