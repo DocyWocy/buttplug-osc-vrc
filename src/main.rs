@@ -18,7 +18,12 @@ use anyhow::{bail, Result, Error};
 use tracing::{debug, info, warn, error};
 use std::{thread, time};
 use std::collections::HashMap;
-
+use std::str::FromStr;
+use std::num::ParseIntError;
+use json::parse;
+use rustc_serialize::json::Json;
+use std::fs::File;
+use std::io::Read;
 
 const DEVICES_ALL: &str = "all";
 const DEVICES_LAST: &str = "last";
@@ -130,36 +135,58 @@ fn osc_listen(host_port: &str, devices: evmap::ReadHandle<&'static str, Device>)
                                     )
                                 })
                             }
+
+                            Command::VibrateSingle(speed, index) => {
+                                task::spawn(async move {
+                                    debug!("[{}] adjusting vibration", device_name);
+                                    device.vibrate(VibrateCommand::SpeedMap(HashMap::from([(index as u32, speed)]))).await.map_err(|e|
+                                        error!("{:?}", e)
+                                    )
+                                })
+                            }
+
                             Command::Stop => {
                                 task::spawn(async move {
+                                    info!("tested");
                                     debug!("[{}] stopping", device_name);
                                     device.stop().await.map_err(|e|
                                         error!("{:?}", e)
                                     )
                                 })
                             }
-                            Command::Test(index) => {
+
+                            Command::VibratePattern(index) => {
                                 task::spawn(async move {
                                     debug!("[{}] testing", device_name);
-                                    println!("tested");
-                                    let mut feature :u32 = index as u32;
-                                    let millis = time::Duration::from_millis(33); //30.3hz update rate 30 times a second
+                                    let mut motor_index: u32 = 0;
+                                    let mut intensity: f64 = 0.00;
+                                    let mut milli: u64 = 100;
+                                    let mut pattern2 = vec![[1, 100, 500], [1, 0, 500], [1, 100, 500], [1, 0, 500], [1, 100, 500], [1, 0, 500]];
 
-                                    thread::sleep(millis);
-
-                                    for x in 1..150 { // about 10 seconds? ramp up then stop
-                                        speed_cmd = 1.0/(x as f64); //SingleMotorVibrateCmd
-                                        //SingleMotorVibrateCmd::new(1,speed_cmd);
-                                        //SingleMotorVibrateCmd();DeviceIndex
-                                        //let s: HashMap<u32, f64> = {index, speed_cmd};
-
-                                        device.vibrate(VibrateCommand::SpeedMap(HashMap::from([(feature, speed_cmd)]))).await.map_err(|e| error!("{:?}", e)).expect("unable to perform VibrateCommand::SpeedMap");
-                                        //device.vibrate(VibrateCommand::Speed(speed_cmd)).await.map_err(|e| error!("{:?}", e));
-                                        thread::sleep(millis);
-                                    }
-
-                                    thread::sleep(millis);
-                                    device.vibrate(VibrateCommand::SpeedMap(HashMap::from([(feature, 0.0)]))).await.map_err(|e| error!("{:?}", e))
+                                    match index {
+                                        1 => {
+                                            for step in 1..500 {
+                                                intensity = (step / 100) as f64;
+                                                let milli = time::Duration::from_millis(50);
+                                                thread::sleep(milli);
+                                            }
+                                        }
+                                        2 => {
+                                            for command_array in pattern2 {
+                                                motor_index = command_array[0];
+                                                intensity = (command_array[1] as f64)/100.0;
+                                                info!("command_array[1] {}", command_array[1]);
+                                                info!("intensity: {}", intensity);
+                                                milli = (command_array[2] as u64);
+                                                thread::sleep(time::Duration::from_millis(milli));
+                                                device.vibrate(VibrateCommand::SpeedMap(HashMap::from([(motor_index, intensity)]))).await.map_err(|e| error!("{:?}", e));
+                                            }
+                                        }
+                                        _ => {}
+                                    };
+                                    device.stop().await.map_err(|e|
+                                        error!("{:?}", e)
+                                    )
                                 })
                             }
                         };
@@ -213,7 +240,7 @@ fn validate_osc_message(message: osc::Message) -> Option<CommandBroadcast> {
                         command: Command::Stop,
                     })
                 }
-                Some(&"test") => {
+                Some(&"vibratepattern") => {
                     match path.get(6) { //gets <argument>
                         Some(&"index") => {
                             match message.args {
@@ -233,7 +260,7 @@ fn validate_osc_message(message: osc::Message) -> Option<CommandBroadcast> {
                                     debug!("[{}]", message.addr);
                                     Some(CommandBroadcast {
                                         devices_set: String::from(path[4]),
-                                        command: Command::Test(index),
+                                        command: Command::VibratePattern(index),
                                     })
                                 }
                                 None => invalid("invalid argument value: none")
@@ -271,6 +298,37 @@ fn validate_osc_message(message: osc::Message) -> Option<CommandBroadcast> {
                         _ => invalid("invalid argument name")
                     }
                 }
+                Some(&"vibratesingle") => { ///avatar/parameters/devices/all/vibratesingle/X/speed
+                    match path.get(7) { //gets <argument>
+                        Some(&"speed") => {
+                            match message.args {
+                                Some(ref message_args) => {
+                                    let speed: f64 = match message_args.get(0) {
+                                        Some(OscType::Double(x)) => {
+                                            *x
+                                        }
+                                        Some(OscType::Float(x)) => {
+                                            (*x).into()
+                                        }
+                                        _ => {
+                                            return invalid(&format!("invalid argument value: {:?}", message_args[0]));
+                                        }
+                                    };
+                                    debug!("[{}] {}", message.addr, speed);
+                                    let mut index = "1";
+                                    let mut index = Some(path.get(6));
+                                    info!("V_Motor: {}", index.unwrap().unwrap().parse::<i32>().unwrap());
+                                    Some(CommandBroadcast {
+                                        devices_set: String::from(path[4]),
+                                        command: Command::VibrateSingle(speed, index.unwrap().unwrap().parse::<i32>().unwrap()),
+                                    })
+                                }
+                                None => invalid("invalid argument value: none")
+                            }
+                        }
+                        _ => invalid("invalid argument name")
+                    }
+                }
                 _ => invalid("invalid command")
             }
         }
@@ -290,12 +348,17 @@ fn validate_osc_listen_url(osc_listen_url: &Url) -> String {
     format!("{}:{}", osc_listen_host, osc_listen_port)
 }
 
-type Speed = f64;
-type Index = i32;
+pub struct PatternCommand {
+    pub motor_index: u32,
+    pub intensity: f64,
+    pub milli: u32,
+}
+
 enum Command {
     Stop,
-    Vibrate(Speed),
-    Test(Index),
+    Vibrate(f64), //Speed
+    VibratePattern(i32), //Index
+    VibrateSingle(f64, i32) //(Speed, Index)
 }
 
 struct CommandBroadcast {
@@ -303,9 +366,7 @@ struct CommandBroadcast {
     command: Command,
 }
 
-
 // evmap required Hash trait which was not implemented by ButtplugClientDevice
-
 #[derive(Debug, Eq, Clone, evmap_derive::ShallowCopy)]
 struct Device {
     device: Arc<ButtplugClientDevice>
