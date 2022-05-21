@@ -10,9 +10,6 @@ use buttplug::{
              device::VibrateCommand},
     connector::{ButtplugRemoteClientConnector, ButtplugWebsocketClientTransport},
     core::messages::serializer::ButtplugClientJSONSerializer,
-    //core::messages::SingleMotorVibrateCmd,
-    //core::messages::ButtplugDeviceCommandMessageUnion::SingleMotorVibrateCmd,
-    //core::messages::ButtplugDeviceMessageType::SingleMotorVibrateCmd,
 };
 use anyhow::{bail, Result, Error};
 use tracing::{debug, info, warn, error};
@@ -20,10 +17,32 @@ use std::{thread, time};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::num::ParseIntError;
-use json::parse;
-use rustc_serialize::json::Json;
-use std::fs::File;
-use std::io::Read;
+use std::fs;
+//use std::env;
+use std::io;
+use serde_json;
+extern crate serde_derive;
+use serde_derive::Serialize;
+use serde_derive::Deserialize;
+extern crate yaml_rust;
+use yaml_rust::{YamlLoader, YamlEmitter};
+use yaml_rust::Yaml;
+
+
+#[derive(Serialize, Deserialize)]
+pub struct Patterns {
+    #[serde(rename = "Patterns")]
+    patterns: Vec<Vec<Vec<u32>>>, //i64
+}
+
+fn load_yaml_file(filename:&str) -> Yaml {
+    let contents = fs::read_to_string(filename)
+        .expect("Something went wrong reading the file");
+    let patterns_loaded = YamlLoader::load_from_str(&contents as &str).unwrap();
+    let patterns = &patterns_loaded[0]["Patterns"];
+    //info!("test 2 {:?}", patterns[0 as usize][0 as usize][0 as usize].as_i64().unwrap());
+    return patterns.clone();
+}
 
 const DEVICES_ALL: &str = "all";
 const DEVICES_LAST: &str = "last";
@@ -36,6 +55,10 @@ struct CliArgs {
 
     #[structopt(long, default_value = "udp://0.0.0.0:9000")]
     osc_listen: Url,
+
+    //TODO: make this work
+    #[structopt(long="file-name", default_value = "Patterns.txt")]
+    filename: String,
 
     #[structopt(long = "log-level", env = "RUST_LOG", default_value = "debug")]
     rust_log: String,
@@ -161,29 +184,28 @@ fn osc_listen(host_port: &str, devices: evmap::ReadHandle<&'static str, Device>)
                                     let mut motor_index: u32 = 0;
                                     let mut intensity: f64 = 0.00;
                                     let mut milli: u64 = 100;
-                                    let mut pattern2 = vec![[1, 100, 500], [1, 0, 500], [1, 100, 500], [1, 0, 500], [1, 100, 500], [1, 0, 500]];
 
-                                    match index {
-                                        1 => {
-                                            for step in 1..500 {
-                                                intensity = (step / 100) as f64;
-                                                let milli = time::Duration::from_millis(50);
-                                                thread::sleep(milli);
-                                            }
-                                        }
-                                        2 => {
-                                            for command_array in pattern2 {
-                                                motor_index = command_array[0];
-                                                intensity = (command_array[1] as f64)/100.0;
-                                                info!("command_array[1] {}", command_array[1]);
-                                                info!("intensity: {}", intensity);
-                                                milli = (command_array[2] as u64);
-                                                thread::sleep(time::Duration::from_millis(milli));
-                                                device.vibrate(VibrateCommand::SpeedMap(HashMap::from([(motor_index, intensity)]))).await.map_err(|e| error!("{:?}", e));
-                                            }
-                                        }
-                                        _ => {}
-                                    };
+                                    let args = CliArgs::from_args();
+                                    info!("File PAth: {}", &args.filename);
+                                    let patterns = load_yaml_file(&args.filename);
+                                    info!("INDEX: {}", index);
+                                    for command_array in patterns[index as usize].clone(){
+                                        motor_index =  command_array[0].as_i64().unwrap() as u32;
+                                        intensity = (command_array[1].as_i64().unwrap() as f64)/100.0;
+                                        milli = (command_array[2].as_i64().unwrap() as u64);
+
+                                        //info!("motor_index: {}", motor_index);
+                                        //info!("intensity: {}", intensity);
+                                        //info!("intensity: {}", milli);
+
+                                        thread::sleep(time::Duration::from_millis(milli));
+                                        device.vibrate(VibrateCommand::SpeedMap(HashMap::from([(motor_index, intensity)]))).await.map_err(|e| error!("{:?}", e));
+
+                                    }
+
+                                    device.vibrate(VibrateCommand::SpeedMap(HashMap::from([(0, 0.00)]))).await.map_err(|e| error!("{:?}", e));
+                                    device.vibrate(VibrateCommand::SpeedMap(HashMap::from([(1, 0.00)]))).await.map_err(|e| error!("{:?}", e));
+
                                     device.stop().await.map_err(|e|
                                         error!("{:?}", e)
                                     )
