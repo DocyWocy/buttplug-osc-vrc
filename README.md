@@ -49,3 +49,4 @@ devices/all/vibrate/stop
 devices/all/vibratepattern/index (int of pattern you want to trigger)
 devices/all/vibratesingle/1/speed (flaot of speed you want, 1 or 0 for motor select)
 devices/all/vibratesingle/0/speed (flaot of speed you want, 1 or 0 for motor select)
+/avatar/parameters/devices/all/vibratepattern/index (int of pattern you want to run)
